@@ -364,6 +364,9 @@ class NextRevalidate {
         $secret = $options['webhook_secret'] ?? '';
 
         $payload = [
+            // contentType/contentId are what /api/revalidate reads
+            'contentType' => $this->get_content_type($type, $data),
+            'contentId' => $data['id'] ?? null,
             'type' => $type,
             'data' => $data,
             'timestamp' => time()
@@ -401,6 +404,15 @@ class NextRevalidate {
             'http_code' => $http_code,
             'error' => $success ? null : "HTTP {$http_code}"
         ];
+    }
+
+    // Map to the content types /api/revalidate understands (post, page, category, tag, ...)
+    private function get_content_type($type, $data) {
+        if ($type === 'term') {
+            $taxonomy = $data['taxonomy'] ?? '';
+            return $taxonomy === 'post_tag' ? 'tag' : $taxonomy;
+        }
+        return $data['type'] ?? $type;
     }
 
     private function add_log_entry($entry) {
@@ -451,6 +463,7 @@ add_action('wp_ajax_next_revalidate_test', function() {
             'x-webhook-secret' => $secret
         ],
         'body' => json_encode([
+            'contentType' => 'test',
             'type' => 'test',
             'data' => ['message' => 'Test from WordPress'],
             'timestamp' => time()

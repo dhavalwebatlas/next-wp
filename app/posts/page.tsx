@@ -52,14 +52,23 @@ export default async function Page({
 
   // Fetch data based on search parameters using efficient pagination
   const [postsResponse, authors, tags, categories] = await Promise.all([
-    getPostsPaginated(page, postsPerPage, { author, tag, category, search }),
+    getPostsPaginated(page, postsPerPage, {
+      author,
+      tag,
+      category,
+      search,
+    }).catch((error: unknown) => {
+      console.error("Failed to load posts from WordPress:", error);
+      return null;
+    }),
     search ? searchAuthors(search) : getAllAuthors(),
     search ? searchTags(search) : getAllTags(),
     search ? searchCategories(search) : getAllCategories(),
   ]);
 
-  const { data: posts, headers } = postsResponse;
-  const { total, totalPages } = headers;
+  const posts = postsResponse?.data ?? [];
+  const total = postsResponse?.headers.total ?? 0;
+  const totalPages = postsResponse?.headers.totalPages ?? 0;
 
   // Create pagination URL helper
   const createPaginationUrl = (newPage: number) => {
@@ -78,10 +87,12 @@ export default async function Page({
         <div className="space-y-8">
           <Prose>
             <h2>All Posts</h2>
-            <p className="text-muted-foreground">
-              {total} {total === 1 ? "post" : "posts"} found
-              {search && " matching your search"}
-            </p>
+            {postsResponse && (
+              <p className="text-muted-foreground">
+                {total} {total === 1 ? "post" : "posts"} found
+                {search && " matching your search"}
+              </p>
+            )}
           </Prose>
 
           <div className="space-y-4">
@@ -97,7 +108,11 @@ export default async function Page({
             />
           </div>
 
-          {posts.length > 0 ? (
+          {!postsResponse ? (
+            <div className="h-24 w-full border rounded-lg bg-destructive/10 flex items-center justify-center">
+              <p>Posts could not be loaded. Please try again later.</p>
+            </div>
+          ) : posts.length > 0 ? (
             <div className="grid md:grid-cols-3 gap-4">
               {posts.map((post) => (
                 <PostCard key={post.id} post={post} />

@@ -174,6 +174,24 @@ describe("POST /api/revalidate", () => {
     });
   });
 
+  it("accepts the next-revalidate plugin payload", async () => {
+    const { POST } = await import("@/app/api/revalidate/route");
+    const req = createRequest(
+      {
+        contentType: "post",
+        contentId: 12,
+        type: "post",
+        data: { id: 12, slug: "hello-world", type: "post", action: "update" },
+        timestamp: 1791544337,
+      },
+      "test-secret"
+    );
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(mockRevalidateTag).toHaveBeenCalledWith("post-12", { expire: 0 });
+  });
+
   it("handles post without contentId", async () => {
     const { POST } = await import("@/app/api/revalidate/route");
     const req = createRequest({ contentType: "post" }, "test-secret");

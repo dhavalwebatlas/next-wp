@@ -33,6 +33,18 @@ class WordPressAPIError extends Error {
   }
 }
 
+// One-line reason for a failed request: HTTP status + endpoint, or the network error code
+function describeFetchError(error: unknown): string {
+  if (error instanceof WordPressAPIError) {
+    return `${error.message} (${error.endpoint})`;
+  }
+  if (error instanceof Error) {
+    const code = (error.cause as { code?: string } | undefined)?.code;
+    return code ? `${error.message} (${code})` : error.message;
+  }
+  return String(error);
+}
+
 // Pagination types
 export interface WordPressPaginationHeaders {
   total: number;
@@ -69,7 +81,7 @@ async function wordpressFetch<T>(
 
   if (!response.ok) {
     throw new WordPressAPIError(
-      `WordPress API request failed: ${response.statusText}`,
+      `WordPress API request failed: ${response.status} ${response.statusText}`,
       response.status,
       url
     );
@@ -89,8 +101,8 @@ async function wordpressFetchGraceful<T>(
 
   try {
     return await wordpressFetch<T>(path, query, tags);
-  } catch {
-    console.warn(`WordPress fetch failed for ${path}`);
+  } catch (error) {
+    console.warn(`WordPress fetch failed for ${path}: ${describeFetchError(error)}`);
     return fallback;
   }
 }
@@ -114,7 +126,7 @@ async function wordpressFetchPaginated<T>(
 
   if (!response.ok) {
     throw new WordPressAPIError(
-      `WordPress API request failed: ${response.statusText}`,
+      `WordPress API request failed: ${response.status} ${response.statusText}`,
       response.status,
       url
     );
@@ -144,13 +156,17 @@ async function wordpressFetchPaginatedGraceful<T>(
 
   try {
     return await wordpressFetchPaginated<T[]>(path, query, tags);
-  } catch {
-    console.warn(`WordPress paginated fetch failed for ${path}`);
+  } catch (error) {
+    console.warn(
+      `WordPress paginated fetch failed for ${path}: ${describeFetchError(error)}`
+    );
     return emptyResponse;
   }
 }
 
-// Paginated posts with filter support
+// Paginated posts with filter support.
+// Throws on failure so callers can tell "WordPress is unreachable/misconfigured"
+// apart from "WordPress genuinely has no matching posts".
 export async function getPostsPaginated(
   page: number = 1,
   perPage: number = 9,
@@ -187,7 +203,7 @@ export async function getPostsPaginated(
     cacheTags.push(`posts-category-${filterParams.category}`);
   }
 
-  return wordpressFetchPaginatedGraceful<Post>(
+  return wordpressFetchPaginated<Post[]>(
     "/wp-json/wp/v2/posts",
     query,
     cacheTags

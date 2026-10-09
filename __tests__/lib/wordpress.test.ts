@@ -98,14 +98,24 @@ describe("WordPress API", () => {
       expect(result.headers.totalPages).toBe(3);
     });
 
-    it("returns empty response on fetch failure", async () => {
+    it("throws on fetch failure instead of returning an empty list", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       const { getPostsPaginated } = await import("@/lib/wordpress");
-      const result = await getPostsPaginated(1, 9);
 
-      expect(result.data).toEqual([]);
-      expect(result.headers.total).toBe(0);
+      await expect(getPostsPaginated(1, 9)).rejects.toThrow("Network error");
+    });
+
+    it("throws WordPressAPIError with status when the endpoint 404s", async () => {
+      mockFetch.mockResolvedValueOnce(
+        mockResponse(null, { ok: false, status: 404, statusText: "Not Found" })
+      );
+
+      const { getPostsPaginated, WordPressAPIError } = await import(
+        "@/lib/wordpress"
+      );
+
+      await expect(getPostsPaginated(1, 9)).rejects.toThrow(WordPressAPIError);
     });
   });
 
